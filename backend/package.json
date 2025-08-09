@@ -1,26 +1,35 @@
 {
   "name": "snmp-dashboard-backend",
   "version": "1.0.0",
-  "description": "SNMP Dashboard Backend API",
+  "description": "SNMP Dashboard Backend API with enhanced SNMPv3 support",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "cross-env NODE_OPTIONS='--openssl-legacy-provider' node server.js",
+    "dev": "cross-env NODE_OPTIONS='--openssl-legacy-provider' nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-snmp": "cross-env NODE_OPTIONS='--openssl-legacy-provider' node scripts/testSnmp.js",
+    "test-snmp-legacy": "node --openssl-legacy-provider scripts/testSnmp.js"
   },
-  "keywords": ["snmp", "dashboard", "monitoring", "network"],
+  "keywords": [
+    "snmp",
+    "dashboard",
+    "monitoring",
+    "network",
+    "snmpv3"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "sqlite3": "^5.1.6",
+    "express": "^4.18.2",
     "net-snmp": "^3.11.2",
     "node-cron": "^3.0.2",
+    "sqlite3": "^5.1.6",
     "winston": "^3.10.0"
   },
   "devDependencies": {
+    "cross-env": "^10.0.0",
     "nodemon": "^3.0.1"
   }
 }

@@ -3,7 +3,7 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 
-const { initializeDatabase } = require("./database");
+const { database } = require("./database");
 const { startSNMPCollector } = require("./snmpCollector");
 const logger = require("./logger");
 
@@ -13,10 +13,15 @@ const dataRoutes = require("./routes/data");
 const healthRoutes = require("./routes/health");
 
 const app = express();
-const PORT = process.env.PORT || 1999;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:2002", "http://127.0.0.1:2002"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -30,6 +35,15 @@ app.use((req, res, next) => {
 app.use("/api/devices", deviceRoutes);
 app.use("/api", dataRoutes);
 app.use("/api/health", healthRoutes);
+
+// Test endpoint
+app.get("/api/test", (req, res) => {
+  res.json({
+    message: "Backend is running!",
+    timestamp: new Date().toISOString(),
+    port: PORT,
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -52,7 +66,7 @@ app.use("*", (req, res) => {
 async function startServer() {
   try {
     // Initialize database
-    await initializeDatabase();
+    await database.connect();
     logger.info("Database initialized successfully");
 
     // Start SNMP collector
@@ -61,7 +75,10 @@ async function startServer() {
 
     // Start server
     app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📊 Dashboard: http://localhost:3000`);
+      logger.info(`🔧 API: http://localhost:${PORT}/api`);
+      logger.info(`❤️  Health: http://localhost:${PORT}/api/health`);
       logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
     });
   } catch (error) {

@@ -1,62 +1,116 @@
-const express = require("express")
-const { database } = require("../database")
-const { collector } = require("../snmpCollector")
-const logger = require("../logger")
+const express = require("express");
+const { database } = require("../database");
+const logger = require("../logger");
 
-const router = express.Router()
+const router = express.Router();
 
 // Health check endpoint
 router.get("/", async (req, res) => {
   try {
     // Check database connectivity
-    await database.get("SELECT 1")
+    await database.get("SELECT 1");
 
-    // Get system stats
-    const deviceCount = await database.get("SELECT COUNT(*) as count FROM device_info")
-    const onlineDevices = await database.get('SELECT COUNT(*) as count FROM device_info WHERE status = "online"')
-    const recentData = await database.get(
-      'SELECT COUNT(*) as count FROM snmp_data WHERE timestamp > datetime("now", "-1 hour")',
-    )
+    // Get basic stats
+    const deviceCount = await database.get(
+      "SELECT COUNT(*) as count FROM device_info"
+    );
+    const onlineDevices = await database.get(
+      "SELECT COUNT(*) as count FROM device_info WHERE status = 'online'"
+    );
+    const recentDataCount = await database.get(
+      "SELECT COUNT(*) as count FROM snmp_data WHERE timestamp >= datetime('now', '-1 hour')"
+    );
 
-    const healthStatus = {
+    res.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       database: "connected",
-      collector_running: collector.isRunning,
       stats: {
-        total_devices: deviceCount.count,
-        online_devices: onlineDevices.count,
-        recent_data_points: recentData.count,
+        totalDevices: deviceCount.count,
+        onlineDevices: onlineDevices.count,
+        recentDataPoints: recentDataCount.count,
       },
-    }
-
-    res.json(healthStatus)
+    });
   } catch (error) {
-    logger.error("Health check failed:", error)
+    logger.error("Health check failed:", error);
     res.status(500).json({
       status: "unhealthy",
       timestamp: new Date().toISOString(),
       error: error.message,
-    })
+    });
   }
-})
+});
 
-// Get system information
-router.get("/info", async (req, res) => {
+// Detailed system status
+router.get("/status", async (req, res) => {
   try {
-    const info = {
-      version: process.env.npm_package_version || "1.0.0",
-      node_version: process.version,
-      uptime: process.uptime(),
-      memory_usage: process.memoryUsage(),
-      environment: process.env.NODE_ENV || "development",
-    }
+    // Database stats
+    const dbStats = await database.all(`
+      SELECT 
+        'devices' as table_name, COUNT(*) as count 
+      FROM device_info
+      UNION ALL
+      SELECT 
+        'snmp_data' as table_name, COUNT(*) as count 
+      FROM snmp_data
+      UNION ALL
+      SELECT 
+        'interface_data' as table_name, COUNT(*) as count 
+      FROM interface_data
+    `);
 
-    res.json(info)
+    // Device status breakdown
+    const deviceStatus = await database.all(`
+      SELECT status, COUNT(*) as count 
+      FROM device_info 
+      GROUP BY status
+    `);
+
+    // Recent activity
+    const recentActivity = await database.all(`
+      SELECT 
+        DATE(timestamp) as date,
+        COUNT(*) as data_points
+      FROM snmp_data 
+      WHERE timestamp >= datetime('now', '-7 days')
+      GROUP BY DATE(timestamp)
+      ORDER BY date DESC
+    `);
+
+    // System uptime (approximate based on oldest data)
+    const oldestData = await database.get(`
+      SELECT MIN(timestamp) as oldest 
+      FROM snmp_data
+    `);
+
+    res.json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      database: {
+        tables: dbStats.reduce((acc, stat) => {
+          acc[stat.table_name] = stat.count;
+          return acc;
+        }, {}),
+      },
+      devices: {
+        status: deviceStatus.reduce((acc, stat) => {
+          acc[stat.status] = stat.count;
+          return acc;
+        }, {}),
+      },
+      activity: {
+        recent: recentActivity,
+        oldestData: oldestData.oldest,
+      },
+    });
   } catch (error) {
-    logger.error("Error getting system info:", error)
-    res.status(500).json({ error: "Failed to get system information" })
+    logger.error("Status check failed:", error);
+    res.status(500).json({
+      status: "error",
+      timestamp: new Date().toISOString(),
+      error: error.message,
+    });
   }
-})
+});
 
-module.exports = router
+module.exports = router;

@@ -19,6 +19,17 @@ const handleResponse = async (response) => {
   return response.json();
 };
 
+// Test backend connectivity
+export const testBackendConnection = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/test`);
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Backend connection test failed:", error);
+    throw error;
+  }
+};
+
 export const getDevices = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/devices`);
@@ -63,6 +74,22 @@ export const addDevice = async (deviceData) => {
     return await handleResponse(response);
   } catch (error) {
     console.error("Error adding device:", error);
+    throw error;
+  }
+};
+
+export const testDevice = async (deviceData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/devices/test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(deviceData),
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Error testing device:", error);
     throw error;
   }
 };

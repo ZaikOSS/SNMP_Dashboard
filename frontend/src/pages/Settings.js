@@ -1,16 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { getDevices, addDevice, removeDevice } from '../api/snmpApi';
-import { Plus, Trash2, Server, AlertCircle, CheckCircle } from 'lucide-react';
+"use client";
+
+import { useState, useEffect } from "react";
+import { getDevices, addDevice, removeDevice } from "../api/snmpApi";
+import { Plus, Trash2, Server, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 const Settings = () => {
   const [devices, setDevices] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showPasswords, setShowPasswords] = useState({});
   const [formData, setFormData] = useState({
-    ip_address: '',
-    hostname: '',
-    device_type: 'router',
-    community: 'public'
+    ip_address: "",
+    hostname: "",
+    device_type: "router",
+    community: "public",
+    snmp_version: "2c",
+    snmp_port: 161,
+    snmpv3_username: "",
+    snmpv3_auth_protocol: "MD5",
+    snmpv3_auth_password: "",
+    snmpv3_priv_protocol: "DES",
+    snmpv3_priv_password: "",
+    snmpv3_security_level: "authPriv",
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -24,7 +35,7 @@ const Settings = () => {
       const devicesData = await getDevices();
       setDevices(devicesData);
     } catch (error) {
-      console.error('Error fetching devices:', error);
+      console.error("Error fetching devices:", error);
     } finally {
       setLoading(false);
     }
@@ -32,63 +43,121 @@ const Settings = () => {
 
   const validateForm = () => {
     const errors = {};
-    
+
     if (!formData.ip_address.trim()) {
-      errors.ip_address = 'IP address is required';
+      errors.ip_address = "IP address is required";
     } else if (!/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(formData.ip_address)) {
-      errors.ip_address = 'Invalid IP address format';
+      errors.ip_address = "Invalid IP address format";
     }
-    
-    if (!formData.community.trim()) {
-      errors.community = 'SNMP community is required';
+
+    if (formData.snmp_version === "3") {
+      if (!formData.snmpv3_username.trim()) {
+        errors.snmpv3_username = "Username is required for SNMP v3";
+      }
+
+      if (
+        formData.snmpv3_security_level !== "noAuthNoPriv" &&
+        !formData.snmpv3_auth_password.trim()
+      ) {
+        errors.snmpv3_auth_password = "Authentication password is required";
+      }
+
+      if (
+        formData.snmpv3_security_level === "authPriv" &&
+        !formData.snmpv3_priv_password.trim()
+      ) {
+        errors.snmpv3_priv_password =
+          "Privacy password is required for authPriv";
+      }
+    } else {
+      if (!formData.community.trim()) {
+        errors.community = "SNMP community is required";
+      }
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     setSubmitLoading(true);
     try {
       await addDevice(formData);
       setFormData({
-        ip_address: '',
-        hostname: '',
-        device_type: 'router',
-        community: 'public'
+        ip_address: "",
+        hostname: "",
+        device_type: "router",
+        community: "public",
+        snmp_version: "2c",
+        snmp_port: 161,
+        snmpv3_username: "",
+        snmpv3_auth_protocol: "MD5",
+        snmpv3_auth_password: "",
+        snmpv3_priv_protocol: "DES",
+        snmpv3_priv_password: "",
+        snmpv3_security_level: "authPriv",
       });
       setShowAddForm(false);
       fetchDevices();
     } catch (error) {
-      console.error('Error adding device:', error);
-      setFormErrors({ submit: 'Failed to add device. Please try again.' });
+      console.error("Error adding device:", error);
+      setFormErrors({ submit: "Failed to add device. Please try again." });
     } finally {
       setSubmitLoading(false);
     }
   };
 
   const handleRemoveDevice = async (deviceId) => {
-    if (!window.confirm('Are you sure you want to remove this device?')) return;
-    
+    if (!window.confirm("Are you sure you want to remove this device?")) return;
+
     try {
       await removeDevice(deviceId);
       fetchDevices();
     } catch (error) {
-      console.error('Error removing device:', error);
+      console.error("Error removing device:", error);
     }
+  };
+
+  const togglePasswordVisibility = (field) => {
+    setShowPasswords((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'online': return 'text-green-600 bg-green-100';
-      case 'offline': return 'text-red-600 bg-red-100';
-      case 'unreachable': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case "online":
+        return "text-green-600 bg-green-100";
+      case "offline":
+        return "text-red-600 bg-red-100";
+      case "unreachable":
+        return "text-yellow-600 bg-yellow-100";
+      default:
+        return "text-gray-600 bg-gray-100";
     }
+  };
+
+  const getSNMPVersionBadge = (version) => {
+    const colors = {
+      1: "bg-red-100 text-red-800",
+      "2c": "bg-blue-100 text-blue-800",
+      3: "bg-green-100 text-green-800",
+    };
+
+    return (
+      <span
+        className={`px-2 py-1 text-xs font-medium rounded-full ${
+          colors[version] || "bg-gray-100 text-gray-800"
+        }`}
+      >
+        SNMP v{version}
+      </span>
+    );
   };
 
   if (loading) {
@@ -115,8 +184,10 @@ const Settings = () => {
       {/* Add Device Form */}
       {showAddForm && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Add New Device</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Add New Device
+          </h2>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -126,14 +197,18 @@ const Settings = () => {
                 <input
                   type="text"
                   value={formData.ip_address}
-                  onChange={(e) => setFormData({ ...formData, ip_address: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, ip_address: e.target.value })
+                  }
                   className={`block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                    formErrors.ip_address ? 'border-red-300' : 'border-gray-300'
+                    formErrors.ip_address ? "border-red-300" : "border-gray-300"
                   }`}
                   placeholder="192.168.1.1"
                 />
                 {formErrors.ip_address && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.ip_address}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.ip_address}
+                  </p>
                 )}
               </div>
 
@@ -144,7 +219,9 @@ const Settings = () => {
                 <input
                   type="text"
                   value={formData.hostname}
-                  onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hostname: e.target.value })
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Router-01"
                 />
@@ -156,7 +233,9 @@ const Settings = () => {
                 </label>
                 <select
                   value={formData.device_type}
-                  onChange={(e) => setFormData({ ...formData, device_type: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, device_type: e.target.value })
+                  }
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="router">Router</option>
@@ -168,22 +247,256 @@ const Settings = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SNMP Community *
+                  SNMP Version *
+                </label>
+                <select
+                  value={formData.snmp_version}
+                  onChange={(e) =>
+                    setFormData({ ...formData, snmp_version: e.target.value })
+                  }
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="1">SNMP v1</option>
+                  <option value="2c">SNMP v2c</option>
+                  <option value="3">SNMP v3</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  SNMP Port
                 </label>
                 <input
-                  type="text"
-                  value={formData.community}
-                  onChange={(e) => setFormData({ ...formData, community: e.target.value })}
-                  className={`block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                    formErrors.community ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="public"
+                  type="number"
+                  value={formData.snmp_port}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      snmp_port: Number.parseInt(e.target.value),
+                    })
+                  }
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="161"
                 />
-                {formErrors.community && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.community}</p>
-                )}
               </div>
+
+              {/* SNMP v1/v2c Community */}
+              {formData.snmp_version !== "3" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    SNMP Community *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.community}
+                    onChange={(e) =>
+                      setFormData({ ...formData, community: e.target.value })
+                    }
+                    className={`block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      formErrors.community
+                        ? "border-red-300"
+                        : "border-gray-300"
+                    }`}
+                    placeholder="public"
+                  />
+                  {formErrors.community && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.community}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* SNMP v3 Configuration */}
+            {formData.snmp_version === "3" && (
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  SNMP v3 Configuration
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.snmpv3_username}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          snmpv3_username: e.target.value,
+                        })
+                      }
+                      className={`block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        formErrors.snmpv3_username
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
+                      placeholder="admin"
+                    />
+                    {formErrors.snmpv3_username && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {formErrors.snmpv3_username}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Security Level
+                    </label>
+                    <select
+                      value={formData.snmpv3_security_level}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          snmpv3_security_level: e.target.value,
+                        })
+                      }
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="noAuthNoPriv">No Auth, No Privacy</option>
+                      <option value="authNoPriv">Auth, No Privacy</option>
+                      <option value="authPriv">Auth and Privacy</option>
+                    </select>
+                  </div>
+
+                  {formData.snmpv3_security_level !== "noAuthNoPriv" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Auth Protocol
+                        </label>
+                        <select
+                          value={formData.snmpv3_auth_protocol}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              snmpv3_auth_protocol: e.target.value,
+                            })
+                          }
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="MD5">MD5</option>
+                          <option value="SHA">SHA</option>
+                          <option value="SHA224">SHA224</option>
+                          <option value="SHA256">SHA256</option>
+                          <option value="SHA384">SHA384</option>
+                          <option value="SHA512">SHA512</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Auth Password *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPasswords.auth ? "text" : "password"}
+                            value={formData.snmpv3_auth_password}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                snmpv3_auth_password: e.target.value,
+                              })
+                            }
+                            className={`block w-full px-3 py-2 pr-10 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                              formErrors.snmpv3_auth_password
+                                ? "border-red-300"
+                                : "border-gray-300"
+                            }`}
+                            placeholder="Authentication password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility("auth")}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                          >
+                            {showPasswords.auth ? (
+                              <EyeOff className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </div>
+                        {formErrors.snmpv3_auth_password && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {formErrors.snmpv3_auth_password}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {formData.snmpv3_security_level === "authPriv" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Privacy Protocol
+                        </label>
+                        <select
+                          value={formData.snmpv3_priv_protocol}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              snmpv3_priv_protocol: e.target.value,
+                            })
+                          }
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="DES">DES</option>
+                          <option value="AES">AES</option>
+                          <option value="AES192">AES192</option>
+                          <option value="AES256">AES256</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Privacy Password *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPasswords.priv ? "text" : "password"}
+                            value={formData.snmpv3_priv_password}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                snmpv3_priv_password: e.target.value,
+                              })
+                            }
+                            className={`block w-full px-3 py-2 pr-10 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                              formErrors.snmpv3_priv_password
+                                ? "border-red-300"
+                                : "border-gray-300"
+                            }`}
+                            placeholder="Privacy password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility("priv")}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                          >
+                            {showPasswords.priv ? (
+                              <EyeOff className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-gray-400" />
+                            )}
+                          </button>
+                        </div>
+                        {formErrors.snmpv3_priv_password && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {formErrors.snmpv3_priv_password}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {formErrors.submit && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -210,7 +523,7 @@ const Settings = () => {
                 disabled={submitLoading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {submitLoading ? 'Adding...' : 'Add Device'}
+                {submitLoading ? "Adding..." : "Add Device"}
               </button>
             </div>
           </form>
@@ -220,14 +533,20 @@ const Settings = () => {
       {/* Devices List */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Monitored Devices</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Monitored Devices
+          </h2>
         </div>
 
         {devices.length === 0 ? (
           <div className="text-center py-12">
             <Server className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No devices configured</h3>
-            <p className="text-gray-500">Add your first device to start monitoring.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No devices configured
+            </h3>
+            <p className="text-gray-500">
+              Add your first device to start monitoring.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -242,6 +561,9 @@ const Settings = () => {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    SNMP Version
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -259,7 +581,7 @@ const Settings = () => {
                   <tr key={device.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {device.hostname || 'Unnamed Device'}
+                        {device.hostname || "Unnamed Device"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -269,12 +591,21 @@ const Settings = () => {
                       {device.device_type}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(device.status)}`}>
+                      {getSNMPVersionBadge(device.snmp_version)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                          device.status
+                        )}`}
+                      >
                         {device.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
+                      {device.last_seen
+                        ? new Date(device.last_seen).toLocaleString()
+                        : "Never"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

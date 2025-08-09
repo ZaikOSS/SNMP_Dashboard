@@ -1,11 +1,11 @@
-const winston = require("winston")
-const path = require("path")
+const winston = require("winston");
+const path = require("path");
 
 // Create logs directory if it doesn't exist
-const fs = require("fs")
-const logsDir = path.join(__dirname, "logs")
+const fs = require("fs");
+const logsDir = path.join(__dirname, "logs");
 if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true })
+  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 const logger = winston.createLogger({
@@ -13,7 +13,7 @@ const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
-    winston.format.json(),
+    winston.format.json()
   ),
   defaultMeta: { service: "snmp-dashboard" },
   transports: [
@@ -27,15 +27,18 @@ const logger = winston.createLogger({
       filename: path.join(logsDir, "combined.log"),
     }),
   ],
-})
+});
 
 // If we're not in production, log to the console as well
 if (process.env.NODE_ENV !== "production") {
   logger.add(
     new winston.transports.Console({
-      format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
-    }),
-  )
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+    })
+  );
 }
 
-module.exports = logger
+module.exports = logger;
