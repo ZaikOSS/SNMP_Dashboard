@@ -1,0 +1,9 @@
+flask==2.3.3
+flask-cors==4.0.0
+pysnmp==4.4.12
+pyasn1==0.4.8
+pyasn1-modules==0.2.8
+Flask-Login==0.6.3
+Werkzeug==3.0.1
+Flask-JWT-Extended==4.5.3
+python-dotenv==1.0.1
