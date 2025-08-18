@@ -51,10 +51,6 @@ export function DeviceList() {
 
   const handleRefresh = () => {
     refetchData();
-     toast({
-        title: "Data Refreshed",
-        description: "The device list has been updated.",
-      });
   }
 
   if (loading && devices.length === 0) {
@@ -70,9 +66,9 @@ export function DeviceList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         {user?.role === 'admin' && <AddDeviceForm />}
         <div className="flex gap-2 ml-auto">
-           <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Refresh
+          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Refresh
           </Button>
           <Button variant="outline" onClick={() => handleExport('json')} disabled={isExporting}>
             {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}

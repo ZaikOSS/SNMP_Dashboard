@@ -73,17 +73,12 @@ export function DeviceCard({ device }: DeviceCardProps) {
           </Button>
       )}
     </Link>
-    {selectedDevice && (
-        <DeleteDeviceDialog
-            isOpen={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
-            device={device}
-            onConfirmDelete={confirmDelete}
-        />
-     )}
+    <DeleteDeviceDialog
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        device={device}
+        onConfirmDelete={confirmDelete}
+    />
     </>
   );
 }
-
-// Helper to prevent dialog errors when card is unmounted
-const selectedDevice = true;

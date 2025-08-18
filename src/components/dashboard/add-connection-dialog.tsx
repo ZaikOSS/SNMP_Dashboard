@@ -22,7 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Device, Connection } from "@/types";
+import { Device, Connection, ConnectionType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -32,6 +32,9 @@ const formSchema = z.object({
   target: z.string().min(1, "Target device is required."),
   sourceInterface: z.string().min(1, "Source interface is required."),
   targetInterface: z.string().min(1, "Target interface is required."),
+  type: z.enum(["ethernet", "wifi", "fiber", "virtual"], {
+    required_error: "Connection type is required."
+  }),
 }).refine(data => data.source !== data.target, {
     message: "Source and target cannot be the same.",
     path: ["target"],
@@ -57,6 +60,7 @@ export function AddConnectionDialog({ isOpen, onOpenChange, devices, connections
       target: "",
       sourceInterface: "",
       targetInterface: "",
+      type: "ethernet",
     },
   });
 
@@ -96,7 +100,8 @@ export function AddConnectionDialog({ isOpen, onOpenChange, devices, connections
         source_device_id: sourceId,
         target_device_id: targetId,
         source_interface: values.sourceInterface,
-        target_interface: values.targetInterface
+        target_interface: values.targetInterface,
+        type: values.type as ConnectionType
     });
     form.reset();
     onOpenChange(false);
@@ -154,7 +159,7 @@ export function AddConnectionDialog({ isOpen, onOpenChange, devices, connections
                                 <SelectContent>
                                 {sourceDevice?.interfaces.map(iface => (
                                     <SelectItem key={`${sourceDevice.id}-${iface.ifDescr}`} value={iface.ifDescr}>
-                                        {iface.ifDescr}
+                                        {iface.ifDescr} ({iface.ifType || 'N/A'})
                                     </SelectItem>
                                 ))}
                                 </SelectContent>
@@ -205,7 +210,7 @@ export function AddConnectionDialog({ isOpen, onOpenChange, devices, connections
                                 <SelectContent>
                                 {targetDevice?.interfaces.map(iface => (
                                      <SelectItem key={`${targetDevice.id}-${iface.ifDescr}`} value={iface.ifDescr}>
-                                        {iface.ifDescr}
+                                        {iface.ifDescr} ({iface.ifType || 'N/A'})
                                     </SelectItem>
                                 ))}
                                 </SelectContent>
@@ -216,6 +221,29 @@ export function AddConnectionDialog({ isOpen, onOpenChange, devices, connections
                     />
                 </div>
             </div>
+             <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Connection Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a connection type" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="ethernet">Ethernet (Wired)</SelectItem>
+                            <SelectItem value="wifi">Wi-Fi (Wireless)</SelectItem>
+                            <SelectItem value="fiber">Fiber Optic</SelectItem>
+                            <SelectItem value="virtual">Virtual</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    </FormItem>
+                )}
+            />
             
             <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>

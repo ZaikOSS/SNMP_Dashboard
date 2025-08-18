@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Device, DeviceMetrics, DeviceType, DeviceHistory } from "@/types";
-import { useNetwork } from "@/contexts/network-context";
 import * as api from "@/lib/api";
 import {
   Card,
@@ -45,6 +44,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { MetricsChart } from "@/components/dashboard/metrics-chart";
 import { useToast } from "@/hooks/use-toast";
+import { useNetwork } from "@/contexts/network-context";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const deviceIcons: Record<DeviceType, React.ReactNode> = {
   server: <Server className="h-8 w-8 text-primary" />,
@@ -60,56 +61,13 @@ const deviceIcons: Record<DeviceType, React.ReactNode> = {
 export default function DeviceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { devices, loading: networkLoading } = useNetwork();
   const { toast } = useToast();
+  const { devices, loading: networkLoading, refetchData } = useNetwork();
   const id = Number(params.id);
 
   const [device, setDevice] = useState<Device | null>(null);
   const [metrics, setMetrics] = useState<DeviceMetrics[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchHistory = useCallback(
-    async (ip: string) => {
-      try {
-        const historyData = await api.getDeviceHistory(ip);
-        const metricsData = formatHistoryForChart(historyData);
-        setMetrics(metricsData);
-      } catch (error: any) {
-        // Only show toast on initial load, not on background refresh
-        if (metrics.length === 0) {
-          toast({
-            title: "Failed to fetch history",
-            description: error.message,
-            variant: "destructive",
-          });
-        }
-        console.error("Failed to fetch history:", error);
-      }
-    },
-    [toast, metrics.length]
-  );
-
-  useEffect(() => {
-    const foundDevice = devices.find((d) => d.id === id);
-    if (foundDevice) {
-      setDevice(foundDevice);
-      fetchHistory(foundDevice.ip).finally(() => setLoading(false));
-    } else if (!networkLoading) {
-      setLoading(false);
-    }
-  }, [id, devices, networkLoading, fetchHistory]);
-
-  useEffect(() => {
-    if (!device) return;
-
-    // Set up an interval to refetch history data every 30 seconds
-    const interval = setInterval(() => {
-      fetchHistory(device.ip);
-    }, 30000);
-
-    // Cleanup interval on component unmount
-    return () => clearInterval(interval);
-  }, [device, fetchHistory]);
 
   const formatHistoryForChart = (
     historyData: DeviceHistory[]
@@ -127,11 +85,63 @@ export default function DeviceDetailPage() {
         }),
         dataIn: record.in_throughput_kbps ?? 0,
         dataOut: record.out_throughput_kbps ?? 0,
+        cpu: record.cpu_utilization ?? 0,
+        ram: record.ram_utilization ?? 0,
       }))
-      .filter((m) => m.dataIn >= 0 && m.dataOut >= 0);
+      .filter((m) => m.dataIn! >= 0 && m.dataOut! >= 0);
   };
 
-  if (loading || networkLoading) {
+  const fetchDeviceHistory = useCallback(
+    async (deviceIp: string) => {
+      try {
+        const historyData = await api.getDeviceHistory(deviceIp);
+        const metricsData = formatHistoryForChart(historyData);
+        setMetrics(metricsData);
+      } catch (error: any) {
+        toast({
+          title: "Failed to fetch device history",
+          description: error.message,
+          variant: "destructive",
+        });
+        console.error("Failed to fetch device history:", error);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    if (isNaN(id)) {
+      toast({
+        title: "Invalid Device ID",
+        description: "The device ID in the URL is not valid.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!networkLoading) {
+      const foundDevice = devices.find((d) => d.id === id);
+      if (foundDevice) {
+        setDevice(foundDevice);
+        fetchDeviceHistory(foundDevice.ip);
+        setLoading(false);
+      } else {
+        toast({
+          title: "Device Not Found",
+          description: "Could not find the device in the network list.",
+          variant: "destructive",
+        });
+        setLoading(false);
+      }
+    }
+  }, [id, devices, networkLoading, toast, fetchDeviceHistory]);
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -195,7 +205,7 @@ export default function DeviceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" onClick={() => router.back()} className="mb-4">
+      <Button variant="outline" onClick={handleBack} className="mb-4">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
       </Button>
 
@@ -233,7 +243,7 @@ export default function DeviceDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="font-semibold">System Description:</span>{" "}
-              {device.sysdescr}
+              {device.sysdescr || "N/A"}
             </div>
             <div>
               <span className="font-semibold">Uptime:</span>{" "}
@@ -247,56 +257,44 @@ export default function DeviceDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-            <CardDescription>Real-time device health metrics.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Cpu className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">CPU Utilization</span>
-                </div>
-                <span className="font-semibold">
-                  {device.cpu_utilization ?? "N/A"}%
-                </span>
-              </div>
-              <Progress value={device.cpu_utilization ?? 0} />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MemoryStick className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">RAM Utilization</span>
-                </div>
-                <span className="font-semibold">
-                  {device.ram_utilization ?? "N/A"}%
-                </span>
-              </div>
-              <Progress value={device.ram_utilization ?? 0} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Power className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">Power Supply</span>
-              </div>
-              {getPowerSupplyBadge(device.power_supply_status)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Data Throughput</CardTitle>
-            <CardDescription>Real-time network traffic (KB/s).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MetricsChart data={metrics} />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Historical Performance</CardTitle>
+          <CardDescription>
+            View performance metrics for this device over time.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="throughput">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="throughput">Data Throughput</TabsTrigger>
+              <TabsTrigger value="cpu">CPU Utilization</TabsTrigger>
+              <TabsTrigger value="ram">RAM Utilization</TabsTrigger>
+            </TabsList>
+            <TabsContent value="throughput">
+              <MetricsChart
+                data={metrics}
+                dataKeys={["dataIn", "dataOut"]}
+                title="Data Throughput (KB/s)"
+              />
+            </TabsContent>
+            <TabsContent value="cpu">
+              <MetricsChart
+                data={metrics}
+                dataKeys={["cpu"]}
+                title="CPU Utilization (%)"
+              />
+            </TabsContent>
+            <TabsContent value="ram">
+              <MetricsChart
+                data={metrics}
+                dataKeys={["ram"]}
+                title="RAM Utilization (%)"
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

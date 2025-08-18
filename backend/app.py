@@ -1,6 +1,7 @@
 import io
 import csv
 import os
+import json
 from flask import Flask, jsonify, Response, request
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager, jwt_required
@@ -12,8 +13,9 @@ from db import init_db, get_devices, get_device_history, get_latest_device_histo
 from snmp_utils import get_device_details
 
 # Import blueprints
-from auth import auth_bp, admin_required
+from auth import auth_bp, admin_required, user_required
 from topology import topology_bp
+from feedback import feedback_bp
 
 # --- Flask App Initialization ---
 load_dotenv() 
@@ -27,6 +29,7 @@ app.config["JWT_SECRET_KEY"] = os.environ.get("SECRET_KEY")
 jwt = JWTManager(app)
 app.register_blueprint(auth_bp)
 app.register_blueprint(topology_bp)
+app.register_blueprint(feedback_bp)
 
 # Initialize the database
 init_db()
@@ -40,7 +43,9 @@ def snmp_endpoint():
     if not all(field in data for field in required_fields):
         missing = [field for field in required_fields if field not in data]
         return jsonify({"error": "Missing required fields", "missing_fields": missing}), 400
+    
     result = get_device_details(data["ip"], data["user"], data["auth_key"], data["priv_key"])
+    
     if result["status"] == "success":
         return jsonify(result), 200
     elif result["status"] == "partial":
@@ -57,6 +62,31 @@ def devices_endpoint():
 @jwt_required()
 def history_endpoint(ip):
     return jsonify(get_device_history(ip))
+
+@app.route("/refresh/device", methods=["POST"])
+@user_required()
+def refresh_device_endpoint():
+    data = request.get_json()
+    
+    if not data or "ip" not in data:
+        return jsonify({"error": "Missing required field: ip"}), 400
+    
+    ip = data["ip"]
+    user = os.environ.get("SNMP_USER")
+    auth_key = os.environ.get("SNMP_AUTH_KEY")
+    priv_key = os.environ.get("SNMP_PRIV_KEY")
+
+    if not all([ip, user, auth_key, priv_key]):
+        return jsonify({"error": "SNMP credentials or IP are missing"}), 400
+    
+    result = get_device_details(ip, user, auth_key, priv_key)
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    elif result["status"] == "partial":
+        return jsonify(result), 207
+    else:
+        return jsonify({"status": "error", "message": "Failed to retrieve device information", "errors": result.get("errors", [])}), 500
 
 @app.route("/export/csv", methods=["GET"])
 @jwt_required()
@@ -88,15 +118,12 @@ def throughput_endpoint(ip):
         return jsonify({"message": "Not enough data to calculate throughput."}), 404
 
     current_data = history[0]
-    # The new snmp_utils.py already calculates and stores the throughput,
-    # so we can just grab it directly from the latest history record.
     return jsonify({
         "inbound_kbps": current_data['in_throughput_kbps'],
         "outbound_kbps": current_data['out_throughput_kbps'],
         "timestamp": current_data['timestamp']
     })
 
-# NEW ENDPOINT: Allows an admin to delete a device by its ID
 @app.route("/devices/<int:device_id>", methods=["DELETE"])
 @admin_required()
 def delete_device_endpoint(device_id):
@@ -106,6 +133,14 @@ def delete_device_endpoint(device_id):
     else:
         return jsonify({"error": f"Device with ID {device_id} not found."}), 404
 
+# NEW ENDPOINT: Get detailed history for a device for graphs
+@app.route("/history/detailed/<ip>", methods=["GET"])
+@jwt_required()
+def detailed_history_endpoint(ip):
+    """Returns detailed historical data for a device, suitable for graphing."""
+    # get_device_history is now updated in db.py to retrieve the new fields
+    history = get_device_history(ip)
+    return jsonify(history)
 
 # --- Main Execution ---
 if __name__ == '__main__':

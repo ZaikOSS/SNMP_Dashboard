@@ -24,6 +24,16 @@ def admin_required():
         return decorator
     return wrapper
 
+def user_required():
+    """Custom decorator to require a valid JWT for any user role."""
+    def wrapper(fn):
+        @wraps(fn)
+        @jwt_required()
+        def decorator(*args, **kwargs):
+            return fn(*args, **kwargs)
+        return decorator
+    return wrapper
+
 # --- Authentication Endpoints ---
 @auth_bp.route("/register", methods=["POST"])
 def register_endpoint():
