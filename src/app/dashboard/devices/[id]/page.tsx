@@ -259,38 +259,76 @@ export default function DeviceDetailPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>System Health</CardTitle>
+          <CardDescription>
+            Live resource utilization and hardware status.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <div className="flex items-center justify-between md:flex-col md:items-start">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">CPU Utilization</span>
+            </div>
+            <div>
+              <span className="font-mono text-2xl">
+                {device.cpu_utilization ?? "N/A"}%
+              </span>
+              {device.cpu_utilization !== null && (
+                <Progress value={device.cpu_utilization} className="mt-2 h-1" />
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between md:flex-col md:items-start">
+            <div className="flex items-center gap-2">
+              <MemoryStick className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">RAM Utilization</span>
+            </div>
+            <div>
+              <span className="font-mono text-2xl">
+                {device.ram_utilization ?? "N/A"}%
+              </span>
+              {device.ram_utilization !== null && (
+                <Progress value={device.ram_utilization} className="mt-2 h-1" />
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between md:flex-col md:items-start">
+            <div className="flex items-center gap-2">
+              <Power className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">Power Supply</span>
+            </div>
+            <div className="mt-2">
+              {getPowerSupplyBadge(device.power_supply_status)}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Historical Performance</CardTitle>
           <CardDescription>
-            View performance metrics for this device over time.
+            Performance metrics over the last 30 minutes.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="throughput">
+          <Tabs defaultValue="throughput" className="h-[250px]">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="throughput">Data Throughput</TabsTrigger>
               <TabsTrigger value="cpu">CPU Utilization</TabsTrigger>
               <TabsTrigger value="ram">RAM Utilization</TabsTrigger>
             </TabsList>
             <TabsContent value="throughput">
-              <MetricsChart
-                data={metrics}
-                dataKeys={["dataIn", "dataOut"]}
-                title="Data Throughput (KB/s)"
-              />
+              <MetricsChart data={metrics} dataKeys={["dataIn", "dataOut"]} />
             </TabsContent>
             <TabsContent value="cpu">
-              <MetricsChart
-                data={metrics}
-                dataKeys={["cpu"]}
-                title="CPU Utilization (%)"
-              />
+              <MetricsChart data={metrics} dataKeys={["cpu"]} />
             </TabsContent>
             <TabsContent value="ram">
-              <MetricsChart
-                data={metrics}
-                dataKeys={["ram"]}
-                title="RAM Utilization (%)"
-              />
+              <MetricsChart data={metrics} dataKeys={["ram"]} />
             </TabsContent>
           </Tabs>
         </CardContent>

@@ -19,7 +19,7 @@ import { DeviceMetrics } from "@/types";
 
 interface MetricsChartProps {
   data: DeviceMetrics[];
-  dataKeys: (keyof DeviceMetrics)[];
+  dataKeys: (keyof Omit<DeviceMetrics, "timestamp">)[];
   title?: string;
 }
 
@@ -55,7 +55,7 @@ const getFormatter = (key: keyof DeviceMetrics) => {
   }
 };
 
-export function MetricsChart({ data, dataKeys, title }: MetricsChartProps) {
+export function MetricsChart({ data, dataKeys }: MetricsChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -70,18 +70,18 @@ export function MetricsChart({ data, dataKeys, title }: MetricsChartProps) {
     )
   );
 
+  const yAxisDomain =
+    dataKeys.includes("cpu") || dataKeys.includes("ram")
+      ? ["auto", "auto"]
+      : ["auto", "auto"];
+
   return (
-    <div className="h-[300px] w-full pt-4">
-      {title && (
-        <h3 className="text-center font-semibold text-muted-foreground mb-4">
-          {title}
-        </h3>
-      )}
+    <div className="h-[200px] w-full pt-4">
       <ChartContainer config={filteredConfig} className="h-full w-full">
         <ResponsiveContainer>
           <AreaChart
             data={data}
-            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            margin={{ top: 5, right: 20, left: 10, bottom: 0 }}
           >
             <defs>
               {dataKeys.map((key) => (
@@ -113,13 +113,19 @@ export function MetricsChart({ data, dataKeys, title }: MetricsChartProps) {
               axisLine={false}
               tick={{ fontSize: 12 }}
             />
-            <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12 }}
+              domain={yAxisDomain}
+            />
             <Tooltip
               content={
                 <ChartTooltipContent
                   formatter={(value, name) =>
                     getFormatter(name as keyof DeviceMetrics)(value as number)
                   }
+                  indicator="dot"
                 />
               }
             />
@@ -132,6 +138,7 @@ export function MetricsChart({ data, dataKeys, title }: MetricsChartProps) {
                 stroke={`var(--color-${key})`}
                 fillOpacity={1}
                 fill={`url(#color${key})`}
+                strokeWidth={2}
                 dot={false}
               />
             ))}
