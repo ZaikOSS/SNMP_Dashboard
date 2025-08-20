@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -28,7 +27,7 @@ import { useEffect } from "react";
 
 const formSchema = z.object({
   username: z.string().min(2, "Username must be at least 2 characters."),
-  role: z.enum(["admin", "visitor"]),
+  role: z.enum(["admin", "manager", "visitor"]),
 });
 
 type EditUserFormValues = z.infer<typeof formSchema>;
@@ -40,7 +39,12 @@ interface EditUserDialogProps {
   onEditUser: (user: User) => void;
 }
 
-export function EditUserDialog({ isOpen, onOpenChange, user, onEditUser }: EditUserDialogProps) {
+export function EditUserDialog({
+  isOpen,
+  onOpenChange,
+  user,
+  onEditUser,
+}: EditUserDialogProps) {
   const form = useForm<EditUserFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -57,7 +61,6 @@ export function EditUserDialog({ isOpen, onOpenChange, user, onEditUser }: EditU
       });
     }
   }, [user, form]);
-
 
   const onSubmit = (values: EditUserFormValues) => {
     onEditUser({ ...user, ...values });
@@ -88,7 +91,7 @@ export function EditUserDialog({ isOpen, onOpenChange, user, onEditUser }: EditU
                 </FormItem>
               )}
             />
-             <FormField
+            <FormField
               control={form.control}
               name="role"
               render={({ field }) => (
@@ -108,6 +111,12 @@ export function EditUserDialog({ isOpen, onOpenChange, user, onEditUser }: EditU
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
                         <FormControl>
+                          <RadioGroupItem value="manager" />
+                        </FormControl>
+                        <FormLabel className="font-normal">Manager</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
                           <RadioGroupItem value="admin" />
                         </FormControl>
                         <FormLabel className="font-normal">Admin</FormLabel>
@@ -119,8 +128,14 @@ export function EditUserDialog({ isOpen, onOpenChange, user, onEditUser }: EditU
               )}
             />
             <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit">Save Changes</Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
             </DialogFooter>
           </form>
         </Form>

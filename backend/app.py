@@ -13,7 +13,7 @@ from db import init_db, get_devices, get_device_history, get_latest_device_histo
 from snmp_utils import get_device_details
 
 # Import blueprints
-from auth import auth_bp, admin_required, user_required
+from auth import auth_bp, admin_required, user_required, manager_required
 from topology import topology_bp
 from feedback import feedback_bp
 
@@ -36,15 +36,15 @@ init_db()
 
 # --- Core API Endpoints ---
 @app.route("/snmp", methods=["POST"])
-@admin_required()
+@manager_required()
 def snmp_endpoint():
     data = request.get_json()
-    required_fields = ["ip", "user", "auth_key", "priv_key"]
+    required_fields = ["ip", "user", "auth_key", "priv_key", "vendor"]
     if not all(field in data for field in required_fields):
         missing = [field for field in required_fields if field not in data]
         return jsonify({"error": "Missing required fields", "missing_fields": missing}), 400
     
-    result = get_device_details(data["ip"], data["user"], data["auth_key"], data["priv_key"])
+    result = get_device_details(data["ip"], data["user"], data["auth_key"], data["priv_key"], data["vendor"])
     
     if result["status"] == "success":
         return jsonify(result), 200
@@ -75,11 +75,12 @@ def refresh_device_endpoint():
     user = os.environ.get("SNMP_USER")
     auth_key = os.environ.get("SNMP_AUTH_KEY")
     priv_key = os.environ.get("SNMP_PRIV_KEY")
+    vendor = os.environ.get("SNMP_VENDOR", "cisco")
 
     if not all([ip, user, auth_key, priv_key]):
         return jsonify({"error": "SNMP credentials or IP are missing"}), 400
     
-    result = get_device_details(ip, user, auth_key, priv_key)
+    result = get_device_details(ip, user, auth_key, priv_key, vendor)
     
     if result["status"] == "success":
         return jsonify(result), 200
@@ -125,20 +126,18 @@ def throughput_endpoint(ip):
     })
 
 @app.route("/devices/<int:device_id>", methods=["DELETE"])
-@admin_required()
+@manager_required()
 def delete_device_endpoint(device_id):
-    """(Admin Only) Deletes a device and its history from the database."""
+    """(Admins and Managers Only) Deletes a device and its history from the database."""
     if delete_device(device_id):
         return jsonify({"message": f"Device with ID {device_id} deleted successfully."}), 200
     else:
         return jsonify({"error": f"Device with ID {device_id} not found."}), 404
 
-# NEW ENDPOINT: Get detailed history for a device for graphs
 @app.route("/history/detailed/<ip>", methods=["GET"])
 @jwt_required()
 def detailed_history_endpoint(ip):
     """Returns detailed historical data for a device, suitable for graphing."""
-    # get_device_history is now updated in db.py to retrieve the new fields
     history = get_device_history(ip)
     return jsonify(history)
 

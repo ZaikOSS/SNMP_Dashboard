@@ -78,11 +78,19 @@ export const login = (
 export const register = (
   username: string,
   password: string,
-  role: "admin" | "visitor" = "visitor"
+  role: "admin" | "manager" | "visitor" = "visitor"
 ): Promise<{ message: string }> =>
   fetchWrapper("/register", {
     method: "POST",
     body: JSON.stringify({ username, password, role }),
+  });
+
+export const changePassword = (
+  newPassword: string
+): Promise<{ message: string }> =>
+  fetchWrapper(`/change-password`, {
+    method: "PUT",
+    body: JSON.stringify({ new_password: newPassword }),
   });
 
 // Users
@@ -92,11 +100,38 @@ export const deleteUser = (id: number): Promise<{ message: string }> =>
 export const updateUser = (
   id: number,
   username: string,
-  role: "admin" | "visitor"
+  role: "admin" | "manager" | "visitor"
 ): Promise<{ message: string }> =>
   fetchWrapper(`/users/${id}`, {
     method: "PUT",
     body: JSON.stringify({ username, role }),
+  });
+
+export const updateUserStatus = (
+  userId: number,
+  status: "approved" | "suspended"
+): Promise<{ message: string }> =>
+  fetchWrapper(`/users/${userId}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+
+export const createAdmin = (
+  username: string,
+  password: string
+): Promise<{ message: string }> =>
+  fetchWrapper("/users/create-admin", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+
+export const createManager = (
+  username: string,
+  password: string
+): Promise<{ message: string }> =>
+  fetchWrapper("/users/create-manager", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
   });
 
 // Devices & SNMP
@@ -107,6 +142,7 @@ export const getDeviceHistory = (ip: string): Promise<DeviceHistory[]> =>
 // Admin-only full scan
 export const scanDevice = (
   ip: string,
+  vendor: "cisco" | "hp",
   deviceType?: DeviceType
 ): Promise<{ status: string; data: Device }> => {
   // Using hardcoded credentials as requested.
@@ -115,12 +151,14 @@ export const scanDevice = (
     user: string;
     auth_key: string;
     priv_key: string;
+    vendor: "cisco" | "hp";
     deviceType?: DeviceType;
   } = {
     ip,
     user: "zaikos",
     auth_key: "zaikos123456",
     priv_key: "zaikos123456",
+    vendor,
   };
   if (deviceType) {
     body.deviceType = deviceType;
@@ -130,11 +168,12 @@ export const scanDevice = (
 
 // Visitor-accessible single device refresh
 export const refreshDevice = (
-  ip: string
+  ip: string,
+  vendor: "cisco" | "hp"
 ): Promise<{ status: string; data: Device }> => {
   return fetchWrapper("/refresh/device", {
     method: "POST",
-    body: JSON.stringify({ ip: ip }),
+    body: JSON.stringify({ ip, vendor }),
   });
 };
 

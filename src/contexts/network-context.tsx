@@ -107,12 +107,12 @@ export const NetworkProvider = ({ children }: { children: ReactNode }) => {
       const scanPromises = devicesToScan.map((device) =>
         user.role === "admin"
           ? api
-              .scanDevice(device.ip)
+              .scanDevice(device.ip, device.vendor)
               .catch((e) =>
                 console.error(`Admin scan failed for ${device.ip}:`, e.message)
               )
           : api
-              .refreshDevice(device.ip)
+              .refreshDevice(device.ip, device.vendor)
               .catch((e) =>
                 console.error(
                   `Visitor refresh failed for ${device.ip}:`,

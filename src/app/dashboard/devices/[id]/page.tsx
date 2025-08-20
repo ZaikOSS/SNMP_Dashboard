@@ -38,6 +38,7 @@ import {
   Cpu,
   MemoryStick,
   Power,
+  Wind,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,18 @@ export default function DeviceDetailPage() {
     return <Badge variant="secondary">{status}</Badge>;
   };
 
+  const getFanStatusBadge = (status: string | null) => {
+    if (!status) return <Badge variant="secondary">Unknown</Badge>;
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes("critical") || lowerStatus.includes("shutdown"))
+      return <Badge variant="destructive">{status}</Badge>;
+    if (lowerStatus.includes("warning"))
+      return <Badge className="bg-yellow-500 text-white">Warning</Badge>;
+    if (lowerStatus.includes("normal"))
+      return <Badge className="bg-green-500 text-white">Normal</Badge>;
+    return <Badge variant="secondary">{status}</Badge>;
+  };
+
   return (
     <div className="space-y-6">
       <Button variant="outline" onClick={handleBack} className="mb-4">
@@ -264,8 +277,8 @@ export default function DeviceDetailPage() {
             Live resource utilization and hardware status.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-          <div className="flex items-center justify-between md:flex-col md:items-start">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+          <div className="flex items-center justify-between md:flex-col md:items-start space-y-2">
             <div className="flex items-center gap-2">
               <Cpu className="h-5 w-5 text-muted-foreground" />
               <span className="font-semibold">CPU Utilization</span>
@@ -280,7 +293,7 @@ export default function DeviceDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between md:flex-col md:items-start">
+          <div className="flex items-center justify-between md:flex-col md:items-start space-y-2">
             <div className="flex items-center gap-2">
               <MemoryStick className="h-5 w-5 text-muted-foreground" />
               <span className="font-semibold">RAM Utilization</span>
@@ -295,7 +308,7 @@ export default function DeviceDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between md:flex-col md:items-start">
+          <div className="flex items-center justify-between md:flex-col md:items-start space-y-2">
             <div className="flex items-center gap-2">
               <Power className="h-5 w-5 text-muted-foreground" />
               <span className="font-semibold">Power Supply</span>
@@ -303,6 +316,14 @@ export default function DeviceDetailPage() {
             <div className="mt-2">
               {getPowerSupplyBadge(device.power_supply_status)}
             </div>
+          </div>
+
+          <div className="flex items-center justify-between md:flex-col md:items-start space-y-2">
+            <div className="flex items-center gap-2">
+              <Wind className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">Fan Status</span>
+            </div>
+            <div className="mt-2">{getFanStatusBadge(device.fan_status)}</div>
           </div>
         </CardContent>
       </Card>

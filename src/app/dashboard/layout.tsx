@@ -1,17 +1,19 @@
-
-'use client';
-import { DashboardHeader } from '@/components/dashboard/dashboard-header';
-import { NetworkProvider } from '@/contexts/network-context';
-import { AuthGuard } from '@/components/auth/auth-guard';
-import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
-import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar';
+"use client";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { NetworkProvider } from "@/contexts/network-context";
+import { AuthGuard } from "@/components/auth/auth-guard";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+} from "@/components/ui/sidebar";
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-
   return (
     <AuthGuard>
       <NetworkProvider>

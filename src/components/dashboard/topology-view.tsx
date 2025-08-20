@@ -73,7 +73,7 @@ export function TopologyView() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const isAdmin = user?.role === "admin";
+  const canManageTopology = user?.role === "admin" || user?.role === "manager";
 
   useEffect(() => {
     const initialPositions: { [key: string]: Position } = {};
@@ -96,7 +96,7 @@ export function TopologyView() {
 
   const handleMouseDown = (e: React.MouseEvent, deviceId?: number) => {
     if (deviceId) {
-      if (!isAdmin) return;
+      if (!canManageTopology) return;
       setDragging(deviceId);
       const pos = positions[deviceId];
       setOffset({
@@ -113,7 +113,7 @@ export function TopologyView() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragging !== null && containerRef.current && isAdmin) {
+    if (dragging !== null && containerRef.current && canManageTopology) {
       const containerRect = containerRef.current.getBoundingClientRect();
       let newX = (e.clientX - offset.x - viewOffset.x) / scale;
       let newY = (e.clientY - offset.y - viewOffset.y) / scale;
@@ -136,7 +136,7 @@ export function TopologyView() {
   };
 
   const handleDeleteConnection = (connectionId: number) => {
-    if (isAdmin) {
+    if (canManageTopology) {
       deleteConnection(connectionId);
     }
   };
@@ -167,7 +167,7 @@ export function TopologyView() {
             >
               <ZoomOut />
             </Button>
-            {isAdmin && (
+            {canManageTopology && (
               <Button onClick={() => setIsAddConnectionOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Connection
               </Button>
@@ -205,7 +205,7 @@ export function TopologyView() {
                 return (
                   <g
                     key={conn.id}
-                    className={cn(isAdmin && "group/connection")}
+                    className={cn(canManageTopology && "group/connection")}
                   >
                     <line
                       x1={pos1.x + 75}
@@ -218,7 +218,8 @@ export function TopologyView() {
                           ? "stroke-red-500/50"
                           : connectionLineStyle[conn.type] ||
                               "stroke-green-500/80",
-                        isAdmin && "group-hover/connection:stroke-destructive"
+                        canManageTopology &&
+                          "group-hover/connection:stroke-destructive"
                       )}
                       style={{ pointerEvents: "auto" }}
                     />
@@ -233,7 +234,7 @@ export function TopologyView() {
                         <div
                           className={cn(
                             "text-center bg-card/80 backdrop-blur-sm p-1 rounded-md text-xs transition-opacity",
-                            isAdmin &&
+                            canManageTopology &&
                               "group-hover/connection:opacity-0 opacity-100"
                           )}
                         >
@@ -245,7 +246,7 @@ export function TopologyView() {
                             {conn.target_interface}
                           </div>
                         </div>
-                        {isAdmin && (
+                        {canManageTopology && (
                           <button
                             onClick={() => handleDeleteConnection(conn.id)}
                             className="w-8 h-8 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover/connection:opacity-100 transition-opacity cursor-pointer absolute"
@@ -272,7 +273,7 @@ export function TopologyView() {
                   className={cn(
                     "absolute w-[150px] p-2 rounded-lg text-center flex flex-col items-center justify-center gap-1",
                     "bg-card border-2 shadow-lg",
-                    isAdmin ? "cursor-grab" : "cursor-default",
+                    canManageTopology ? "cursor-grab" : "cursor-default",
                     isOnline ? "border-green-500" : "border-red-500",
                     dragging === device.id && "cursor-grabbing z-10"
                   )}
@@ -292,7 +293,7 @@ export function TopologyView() {
           </div>
         </Card>
       </TooltipProvider>
-      {isAdmin && (
+      {canManageTopology && (
         <AddConnectionDialog
           isOpen={isAddConnectionOpen}
           onOpenChange={setIsAddConnectionOpen}

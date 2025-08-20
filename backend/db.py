@@ -1,6 +1,6 @@
 import sqlite3
 import json
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_FILE = "network_data.db"
 
@@ -20,8 +20,10 @@ def init_db():
         cpu_utilization REAL,
         ram_utilization REAL,
         power_supply_status TEXT,
+        fan_status TEXT,
         last_seen TIMESTAMP,
-        ip_address TEXT
+        ip_address TEXT,
+        vendor TEXT
     )
     """)
     # History table
@@ -47,7 +49,8 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'visitor'))
+        role TEXT NOT NULL CHECK(role IN ('admin', 'manager', 'visitor')),
+        status TEXT NOT NULL CHECK(status IN ('approved', 'pending', 'suspended'))
     )
     """)
     # Connections table
@@ -76,15 +79,23 @@ def init_db():
     )
     """)
     conn.commit()
+    
+    # Check for and create default admin
+    cursor.execute("SELECT id FROM users WHERE username = 'admin'")
+    if cursor.fetchone() is None:
+        hashed_password = generate_password_hash("admin1234")
+        cursor.execute("INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)", ('admin', hashed_password, 'admin', 'approved'))
+        conn.commit()
+        
     conn.close()
 
-def create_user(username, password, role='visitor'):
+def create_user(username, password, role='visitor', status='pending'):
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     password_hash = generate_password_hash(password)
     try:
-        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", (username, password_hash, role))
+        cursor.execute("INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)", (username, password_hash, role, status))
         conn.commit()
         cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
         new_user = cursor.fetchone()
@@ -116,7 +127,7 @@ def get_all_users():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role FROM users")
+    cursor.execute("SELECT id, username, role, status FROM users")
     users = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return users
@@ -133,6 +144,8 @@ def delete_user_by_id(user_id):
 def update_user(user_id, username, role):
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cursor = conn.cursor()
+    if role not in ['admin', 'manager', 'visitor']:
+        return False
     try:
         cursor.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", (username, role, user_id))
         conn.commit()
@@ -142,12 +155,31 @@ def update_user(user_id, username, role):
     finally:
         conn.close()
 
-def insert_device(ip, hostname, sysdescr, sysuptime, interfaces_json, cpu, ram, power_status, ip_address):
+def update_user_password(user_id, new_password):
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    cursor = conn.cursor()
+    hashed_password = generate_password_hash(new_password)
+    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
+    conn.commit()
+    was_updated = cursor.rowcount > 0
+    conn.close()
+    return was_updated
+
+def update_user_status(user_id, status):
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET status = ? WHERE id = ?", (status, user_id))
+    conn.commit()
+    was_updated = cursor.rowcount > 0
+    conn.close()
+    return was_updated
+
+def insert_device(ip, hostname, sysdescr, sysuptime, interfaces_json, cpu, ram, power_status, fan_status, ip_address, vendor):
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO devices (ip, hostname, sysdescr, sysuptime, interfaces_json, cpu_utilization, ram_utilization, power_supply_status, last_seen, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+    INSERT INTO devices (ip, hostname, sysdescr, sysuptime, interfaces_json, cpu_utilization, ram_utilization, power_supply_status, fan_status, last_seen, ip_address, vendor)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     ON CONFLICT(ip) DO UPDATE SET
         hostname=excluded.hostname,
         sysdescr=excluded.sysdescr,
@@ -156,9 +188,11 @@ def insert_device(ip, hostname, sysdescr, sysuptime, interfaces_json, cpu, ram, 
         cpu_utilization=excluded.cpu_utilization,
         ram_utilization=excluded.ram_utilization,
         power_supply_status=excluded.power_supply_status,
+        fan_status=excluded.fan_status,
         last_seen=CURRENT_TIMESTAMP,
-        ip_address=excluded.ip_address;
-    """, (ip, hostname, sysdescr, sysuptime, interfaces_json, cpu, ram, power_status, ip_address))
+        ip_address=excluded.ip_address,
+        vendor=excluded.vendor;
+    """, (ip, hostname, sysdescr, sysuptime, interfaces_json, cpu, ram, power_status, fan_status, ip_address, vendor))
     conn.commit()
     conn.close()
 

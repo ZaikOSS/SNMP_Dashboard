@@ -30,16 +30,16 @@ export function DashboardSidebar() {
       adminOnly: false,
     },
     {
-      href: "/dashboard/users",
-      label: "Users",
-      icon: <Users />,
-      adminOnly: true,
-    },
-    {
       href: "/dashboard/topology",
       label: "Topology",
       icon: <Share2 />,
       adminOnly: false,
+    },
+    {
+      href: "/dashboard/users",
+      label: "Users",
+      icon: <Users />,
+      adminOnly: true,
     },
     {
       href: "/dashboard/feedback",
@@ -54,7 +54,7 @@ export function DashboardSidebar() {
       <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2">
           <Eye className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold">Network Observer</span>
+          <span className="text-lg font-semibold">Network Observer</span>
         </Link>
       </SidebarHeader>
       <SidebarContent>

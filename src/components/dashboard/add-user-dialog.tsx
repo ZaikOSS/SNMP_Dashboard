@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -28,7 +27,7 @@ import { User } from "@/types";
 const formSchema = z.object({
   username: z.string().min(2, "Username must be at least 2 characters."),
   password: z.string().min(8, "Password must be at least 8 characters."),
-  role: z.enum(["admin", "visitor"]),
+  role: z.enum(["admin", "manager", "visitor"]),
 });
 
 type AddUserFormValues = z.infer<typeof formSchema>;
@@ -36,10 +35,14 @@ type AddUserFormValues = z.infer<typeof formSchema>;
 interface AddUserDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAddUser: (user: Omit<User, 'id'>, password: string) => void;
+  onAddUser: (user: Omit<User, "id">, password: string) => void;
 }
 
-export function AddUserDialog({ isOpen, onOpenChange, onAddUser }: AddUserDialogProps) {
+export function AddUserDialog({
+  isOpen,
+  onOpenChange,
+  onAddUser,
+}: AddUserDialogProps) {
   const form = useForm<AddUserFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,7 +53,13 @@ export function AddUserDialog({ isOpen, onOpenChange, onAddUser }: AddUserDialog
   });
 
   const onSubmit = (values: AddUserFormValues) => {
-    onAddUser({ username: values.username, role: values.role as 'admin' | 'visitor' }, values.password);
+    onAddUser(
+      {
+        username: values.username,
+        role: values.role as "admin" | "manager" | "visitor",
+      },
+      values.password
+    );
     form.reset();
     onOpenChange(false);
   };
@@ -92,7 +101,7 @@ export function AddUserDialog({ isOpen, onOpenChange, onAddUser }: AddUserDialog
                 </FormItem>
               )}
             />
-             <FormField
+            <FormField
               control={form.control}
               name="role"
               render={({ field }) => (
@@ -112,6 +121,12 @@ export function AddUserDialog({ isOpen, onOpenChange, onAddUser }: AddUserDialog
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
                         <FormControl>
+                          <RadioGroupItem value="manager" />
+                        </FormControl>
+                        <FormLabel className="font-normal">Manager</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
                           <RadioGroupItem value="admin" />
                         </FormControl>
                         <FormLabel className="font-normal">Admin</FormLabel>
@@ -123,8 +138,14 @@ export function AddUserDialog({ isOpen, onOpenChange, onAddUser }: AddUserDialog
               )}
             />
             <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit">Add User</Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Add User</Button>
             </DialogFooter>
           </form>
         </Form>

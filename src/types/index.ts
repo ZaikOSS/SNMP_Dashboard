@@ -1,7 +1,8 @@
 export interface User {
   id: number;
   username: string;
-  role: "admin" | "visitor";
+  role: "admin" | "manager" | "visitor";
+  status: "approved" | "pending" | "suspended";
 }
 
 export type DeviceType =
@@ -42,6 +43,8 @@ export interface Device {
   cpu_utilization: number | null;
   ram_utilization: number | null;
   power_supply_status: string | null;
+  fan_status: string | null;
+  vendor: "cisco" | "hp"; // Added vendor
   ip_address?: string;
 }
 

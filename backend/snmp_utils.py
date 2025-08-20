@@ -16,11 +16,29 @@ from datetime import datetime
 from ping3 import ping
 
 # --- OID Definitions ---
-BASE_OIDS = {
+# Separate OIDs for different vendors
+CISCO_OIDS = {
     "hostname": "1.3.6.1.2.1.1.5.0",
     "sysdescr": "1.3.6.1.2.1.1.1.0",
     "sysuptime": "1.3.6.1.2.1.1.3.0",
+    "cpuUtilization": "1.3.6.1.4.1.9.9.109.1.1.1.1.8.1", # cpmCPUTotal5minRev
+    "ciscoMemoryPoolUsed": "1.3.6.1.4.1.9.9.48.1.1.1.5.1",
+    "ciscoMemoryPoolFree": "1.3.6.1.4.1.9.9.48.1.1.1.6.1",
+    "powerSupplyStatus": "1.3.6.1.4.1.9.9.13.1.5.1.3.1",
+    "fanStatus": "1.3.6.1.4.1.9.9.13.1.4.1.3.1"
 }
+
+HP_OIDS = {
+    "hostname": "1.3.6.1.2.1.1.5.0",
+    "sysdescr": "1.3.6.1.2.1.1.1.0",
+    "sysuptime": "1.3.6.1.2.1.1.3.0",
+    "cpuUtilization": "1.3.6.1.4.1.11.2.14.5.1.9.0",
+    "ramUtilization": "1.3.6.1.4.1.11.2.14.5.1.10.1.3.1",
+    "powerSupplyStatus": "1.3.6.1.4.1.11.2.14.5.1.7.1.3.1",
+    "fanStatus": "1.3.6.1.4.1.25506.13.1.2.4.7.3.0"
+}
+
+# General OIDs (typically common across vendors)
 INTERFACE_OIDS = {
     "ifDescr": "1.3.6.1.2.1.2.2.1.2",
     "ifType": "1.3.6.1.2.1.2.2.1.3",
@@ -31,12 +49,6 @@ INTERFACE_OIDS = {
 }
 POE_OIDS = {
     "pethPsePortPower": "1.3.6.1.2.1.105.1.3.1.1.5"
-}
-SYSTEM_HEALTH_OIDS = {
-    "cpuUtilization": "1.3.6.1.4.1.9.9.109.1.1.1.1.8.1", # cpmCPUTotal5minRev
-    "ciscoMemoryPoolUsed": "1.3.6.1.4.1.9.9.48.1.1.1.5.1",
-    "ciscoMemoryPoolFree": "1.3.6.1.4.1.9.9.48.1.1.1.6.1",
-    "powerSupplyStatus": "1.3.6.1.4.1.9.9.13.1.5.1.3.1"
 }
 INTERFACE_TYPE_MAP = {
     '6': 'ethernetCsmacd',
@@ -51,29 +63,22 @@ def format_mac_address(value):
     if not value:
         return None
     
-    # Check if the value is a PySNMP OctetString object
     if hasattr(value, 'asOctets'):
         value = value.asOctets()
     
-    # If the value is a string, assume it's already a hex string and format it.
     if isinstance(value, str):
-        # A simple check to see if it's already formatted
         if ':' in value or '-' in value:
             return value.upper()
-        # Otherwise, assume it's a raw hex string
         try:
             return ':'.join(f'{ord(c):02x}' for c in value).upper()
         except TypeError:
-            # Fallback for unexpected types
             return str(value)
     
-    # If it's a byte-like object, format it directly
     if isinstance(value, bytes):
         return ':'.join(f'{b:02x}' for b in value).upper()
     
     return str(value)
 
-# --- SNMP Core Functions ---
 def snmp_get(ip, user, auth_key, priv_key, oids):
     """Performs an SNMP GET to retrieve specific OID values."""
     try:
@@ -114,14 +119,36 @@ def snmp_walk(ip, user, auth_key, priv_key, oid):
         return None, f"SNMP WALK query failed: {str(e)}"
 
 # --- Main Logic ---
-def get_device_details(ip, user, auth_key, priv_key):
+def get_device_details(ip, user, auth_key, priv_key, vendor):
     """Main function to query all device details."""
     if ping(ip, timeout=1) is None:
         return {"status": "offline", "message": f"Device at {ip} is unreachable."}
 
+    # Select OID set based on vendor
+    vendor = vendor.lower()
+    if vendor == "cisco":
+        vendor_oids = CISCO_OIDS
+    elif vendor == "hp":
+        vendor_oids = HP_OIDS
+    else:
+        return {"status": "error", "message": "Unsupported vendor specified."}
+
     results = {"status": "success", "data": {}}
-    all_oids = list(BASE_OIDS.values()) + list(SYSTEM_HEALTH_OIDS.values())
-    varbinds, error = snmp_get(ip, user, auth_key, priv_key, all_oids)
+    all_scalar_oids = [
+        vendor_oids["hostname"],
+        vendor_oids["sysdescr"],
+        vendor_oids["sysuptime"],
+        vendor_oids["cpuUtilization"],
+        vendor_oids["powerSupplyStatus"],
+        vendor_oids["fanStatus"]
+    ]
+    if vendor == "cisco":
+        all_scalar_oids.append(vendor_oids["ciscoMemoryPoolUsed"])
+        all_scalar_oids.append(vendor_oids["ciscoMemoryPoolFree"])
+    elif vendor == "hp":
+        all_scalar_oids.append(vendor_oids["ramUtilization"])
+    
+    varbinds, error = snmp_get(ip, user, auth_key, priv_key, all_scalar_oids)
 
     if error:
         results["status"] = "error"
@@ -131,35 +158,55 @@ def get_device_details(ip, user, auth_key, priv_key):
     varbinds_map = {str(vb[0]): vb[1] for vb in varbinds}
     
     # Base info
-    for key, oid in BASE_OIDS.items():
-        results["data"][key] = str(varbinds_map.get(oid)) if varbinds_map.get(oid) is not None else None
+    results["data"]["hostname"] = str(varbinds_map.get(vendor_oids["hostname"]))
+    results["data"]["sysdescr"] = str(varbinds_map.get(vendor_oids["sysdescr"]))
+    results["data"]["sysuptime"] = str(varbinds_map.get(vendor_oids["sysuptime"]))
 
     # System Health
     try:
-        cpu_val = varbinds_map.get(SYSTEM_HEALTH_OIDS["cpuUtilization"])
+        cpu_val = varbinds_map.get(vendor_oids["cpuUtilization"])
         results["data"]["cpu_utilization"] = int(cpu_val) if cpu_val else None
     except (ValueError, TypeError):
         results["data"]["cpu_utilization"] = None
 
     try:
-        used_ram_str = varbinds_map.get(SYSTEM_HEALTH_OIDS["ciscoMemoryPoolUsed"])
-        free_ram_str = varbinds_map.get(SYSTEM_HEALTH_OIDS["ciscoMemoryPoolFree"])
-        if used_ram_str is not None and free_ram_str is not None:
-            used_ram = float(str(used_ram_str))
-            free_ram = float(str(free_ram_str))
-            total_ram = used_ram + free_ram
-            results["data"]["ram_utilization"] = round((used_ram / total_ram) * 100, 2) if total_ram > 0 else 0
-        else:
-            results["data"]["ram_utilization"] = None
+        if vendor == "cisco":
+            used_ram_str = varbinds_map.get(vendor_oids["ciscoMemoryPoolUsed"])
+            free_ram_str = varbinds_map.get(vendor_oids["ciscoMemoryPoolFree"])
+            if used_ram_str is not None and free_ram_str is not None:
+                used_ram = float(str(used_ram_str))
+                free_ram = float(str(free_ram_str))
+                total_ram = used_ram + free_ram
+                results["data"]["ram_utilization"] = round((used_ram / total_ram) * 100, 2) if total_ram > 0 else 0
+            else:
+                results["data"]["ram_utilization"] = None
+        elif vendor == "hp":
+            ram_util_val = varbinds_map.get(vendor_oids["ramUtilization"])
+            results["data"]["ram_utilization"] = float(ram_util_val) if ram_util_val else None
     except (ValueError, TypeError):
         results["data"]["ram_utilization"] = None
 
     try:
-        power_val = varbinds_map.get(SYSTEM_HEALTH_OIDS["powerSupplyStatus"])
-        power_status_map = {"1": "Normal", "2": "Warning", "3": "Critical"}
-        results["data"]["power_supply_status"] = power_status_map.get(str(power_val), "Unknown") if power_val is not None else "Unknown"
+        power_val = varbinds_map.get(vendor_oids["powerSupplyStatus"])
+        if vendor == "cisco":
+            power_status_map = {"1": "Normal", "2": "Warning", "3": "Critical"}
+            results["data"]["power_supply_status"] = power_status_map.get(str(power_val), "Unknown") if power_val is not None else "Unknown"
+        elif vendor == "hp":
+            hp_power_status_map = {"1": "ok", "2": "failed", "3": "not_installed"}
+            results["data"]["power_supply_status"] = hp_power_status_map.get(str(power_val), "Unknown") if power_val is not None else "Unknown"
     except (ValueError, TypeError):
         results["data"]["power_supply_status"] = "Unknown"
+
+    try:
+        fan_val = varbinds_map.get(vendor_oids["fanStatus"])
+        if vendor == "cisco":
+            fan_status_map = {"1": "Normal", "2": "Warning", "3": "Critical", "4": "Shutdown", "5": "Not Present"}
+            results["data"]["fan_status"] = fan_status_map.get(str(fan_val), "Unknown") if fan_val is not None else "Unknown"
+        elif vendor == "hp":
+            hp_fan_status_map = {"1": "ok", "2": "warning", "3": "failed"}
+            results["data"]["fan_status"] = hp_fan_status_map.get(str(fan_val), "Unknown") if fan_val is not None else "Unknown"
+    except (ValueError, TypeError):
+        results["data"]["fan_status"] = "Unknown"
 
     # Interface Details
     interfaces = {}
@@ -187,7 +234,6 @@ def get_device_details(ip, user, auth_key, priv_key):
             total_in_octets += int(interfaces[port_index]["ifInOctets"])
             total_out_octets += int(interfaces[port_index]["ifOutOctets"])
 
-    # PoE Details
     poe_data, _ = snmp_walk(ip, user, auth_key, priv_key, POE_OIDS["pethPsePortPower"])
     if poe_data:
         for port_index, value in poe_data.items():
@@ -221,7 +267,10 @@ def get_device_details(ip, user, auth_key, priv_key):
                 ip, hostname, results["data"]["sysdescr"], results["data"]["sysuptime"],
                 json.dumps(results["data"]["interfaces"]),
                 results["data"]["cpu_utilization"], results["data"]["ram_utilization"],
-                results["data"]["power_supply_status"], ip
+                results["data"]["power_supply_status"],
+                results["data"]["fan_status"],
+                ip,
+                vendor
             )
             insert_history(
                 ip, hostname, results["data"]["sysdescr"], results["data"]["sysuptime"],
